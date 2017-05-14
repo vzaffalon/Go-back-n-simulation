@@ -1,0 +1,34 @@
+from socket import *
+from Ack import *
+from Message import *
+import time
+import json
+clientAddress = 0
+
+def sendAck(sequenceNumber,data):
+    ack = Ack(sequenceNumber,data + " ack")
+    ackSerialization = json.dumps(ack.__dict__)
+    serverSocket.sendto(ackSerialization, clientAddress)
+
+
+def receiveMessage():
+    global clientAddress
+    messageSerialized, address = serverSocket.recvfrom(2048)
+    clientAddress = address
+    message = json.loads(messageSerialized)
+    print "Mensagem recebida " + str(message)
+    return message
+
+
+#socket config variables
+serverIp = ''
+serverPort = 12000
+
+#server socket configuration
+serverSocket = socket(AF_INET, SOCK_DGRAM)
+serverSocket.bind((serverIp, serverPort))
+print 'The server is ready to receive'
+
+while 1:
+    message = receiveMessage()
+    sendAck(message['sequenceNumber'],message['data'])
