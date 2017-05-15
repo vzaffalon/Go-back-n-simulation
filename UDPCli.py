@@ -9,12 +9,19 @@ def receiveAck():
     ack = json.loads(ackSerialized)
     print "Ack recebido: " + str(ack)
 
+def removeMessageFromWindow():
+    window.pop(0)
 
-def sendMessage(sequenceNumber):
-    clientMessage = Message(sequenceNumber,messageString + str(messageNumber),timeOut)
-    print "Mensagem enviada: " + str(clientMessage.__dict__)
-    messageSerialization = json.dumps(clientMessage.__dict__)
+def sendMessage(clientMessage):
+    messageSerialization = json.dumps(clientMessage.__dict__)       #tranforma classe pra dicionario e manda em formato json
     clientSocket.sendto(messageSerialization,(serverIp, serverPort))
+    print "Mensagem enviada: " + str(clientMessage.__dict__)
+
+def addNewMessageToWindow():
+    global sequenceNumber
+    clientMessage = Message(sequenceNumber,messageString + str(sequenceNumber))
+    window.append(clientMessage)
+    sequenceNumber = sequenceNumber + 1
 
 
 #socket config variables
@@ -31,16 +38,28 @@ timeBetweenPackets = 1 #tempo entre envio de pacotes em segundos
 packetsEmitedPerMinute = 60   #quantidade de pacotes emitidos por minuto
 maximumPacketFlow = 70    #quantidade maxima de pacotes que a rede suporta ate ser considerada congestionada
 expectedSequenceNumber = 0 #numero do sequency number que o cliente espera receber do ack
+numbersOfPacketsToBeTransmited = 47    #numero de mensagens que serao transmitidos pelo programa
 messageString = "hello server "   #mensagem padrao que sera enviada
-messageNumber = 0       #numero da mensagem
+sequenceNumber = 1       #numero de sequencia da mensagem
+window = []      #lista contendo elementos atualmente na janela
 
+#inicia a janela com as primeiras mensagens a serem enviadas
+for x in range (0,windowSize):
+    addNewMessageToWindow()
 
-while 1:
-    for sequenceNumber in range(0, windowSize):
-        sendMessage(messageNumber)
+#enquanto a janela nao fica vazia:
+#envia mensagens,recebe o ack,retira a primeira mensagem e adiciona a proxima na janela
+while len(window) > 0:
+
+        sendMessage(window[0])
         receiveAck()
-        messageNumber = messageNumber + 1
-        expectedSequenceNumber = expectedSequenceNumber + 1
-        time.sleep(timeBetweenPackets)
+        removeMessageFromWindow()           #mensagem enviada e com ack recebido retira da janela
+        expectedSequenceNumber = expectedSequenceNumber + 1     #numero usado para verificacao de ordem
+
+        if numbersOfPacketsToBeTransmited > 0:               #verifica se ainda existem pacotes a serem transmitidos
+            addNewMessageToWindow()
+            numbersOfPacketsToBeTransmited = numbersOfPacketsToBeTransmited - 1
+
+        time.sleep(timeBetweenPackets)          #gera um tempo entre envio de pacotes
 
 clientSocket.close()

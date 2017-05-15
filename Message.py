@@ -1,6 +1,5 @@
 class Message:
 
-    def __init__(self,sequenceNumber,data,timeOut):
+    def __init__(self,sequenceNumber,data):
         self.sequenceNumber = sequenceNumber
         self.data = data
-        self.timeOut = timeOut

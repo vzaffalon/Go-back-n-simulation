@@ -7,15 +7,16 @@ clientAddress = 0
 
 def sendAck(sequenceNumber,data):
     ack = Ack(sequenceNumber,data + " ack")
-    ackSerialization = json.dumps(ack.__dict__)
+    ackSerialization = json.dumps(ack.__dict__)  #envia o ack em formato json
     serverSocket.sendto(ackSerialization, clientAddress)
+    print "Ack Enviado: " + str(ack.sequenceNumber)
 
 
 def receiveMessage():
     global clientAddress
     messageSerialized, address = serverSocket.recvfrom(2048)
     clientAddress = address
-    message = json.loads(messageSerialized)
+    message = json.loads(messageSerialized)  #recebe a mensagem em formato json
     print "Mensagem recebida " + str(message)
     return message
 
