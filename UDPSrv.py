@@ -30,6 +30,9 @@ serverSocket = socket(AF_INET, SOCK_DGRAM)
 serverSocket.bind((serverIp, serverPort))
 print 'The server is ready to receive'
 
+timeBetweenAcksSend = 1
+
 while 1:
+    time.sleep(timeBetweenAcksSend)          #gera um tempo entre envio de pacotes
     message = receiveMessage()
     sendAck(message['sequenceNumber'],message['data'])

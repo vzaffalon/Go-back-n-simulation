@@ -5,9 +5,14 @@ import time
 import json
 
 def receiveAck():
-    ackSerialized, serverAddress = clientSocket.recvfrom(2048) #buffer size 2048
-    ack = json.loads(ackSerialized)
-    print "Ack recebido: " + str(ack)
+        try:
+            ackSerialized, serverAddress = clientSocket.recvfrom(2048) #buffer size 2048
+            ack = json.loads(ackSerialized)
+            print "Ack recebido: " + str(ack)
+        except socket.timeout:
+            print 'ack reception timed out'
+
+
 
 def removeMessageFromWindow():
     window.pop(0)
@@ -27,12 +32,13 @@ def addNewMessageToWindow():
 #socket config variables
 serverIp = ''
 serverPort = 12000
+timeOut = 11     #em segundos
 
 #client socket configuration
 clientSocket = socket(AF_INET, SOCK_DGRAM)          #conexao socket tipo internet e udp
+clientSocket.settimeout(timeOut)
 
 #go-back-n variables
-timeOut = 11     #em segundos
 windowSize = 5   #janela do cliente
 timeBetweenPackets = 1 #tempo entre envio de pacotes em segundos
 packetsEmitedPerMinute = 60   #quantidade de pacotes emitidos por minuto
@@ -50,16 +56,21 @@ for x in range (0,windowSize):
 #enquanto a janela nao fica vazia:
 #envia mensagens,recebe o ack,retira a primeira mensagem e adiciona a proxima na janela
 while len(window) > 0:
+        windowLen = len(window)
+        for y in range(0,windowLen):
+            sendMessage(window[y])
+            time.sleep(timeBetweenPackets)          #gera um tempo entre envio de pacotes
 
-        sendMessage(window[0])
-        receiveAck()
-        removeMessageFromWindow()           #mensagem enviada e com ack recebido retira da janela
-        expectedSequenceNumber = expectedSequenceNumber + 1     #numero usado para verificacao de ordem
+        for z in range(0,windowLen):
+            receiveAck()
+            removeMessageFromWindow()           #mensagem enviada e com ack recebido retira da janela
+            expectedSequenceNumber = expectedSequenceNumber + 1     #numero usado para verificacao de ordem
 
-        if numbersOfPacketsToBeTransmited > 0:               #verifica se ainda existem pacotes a serem transmitidos
-            addNewMessageToWindow()
-            numbersOfPacketsToBeTransmited = numbersOfPacketsToBeTransmited - 1
+            if numbersOfPacketsToBeTransmited > 0:               #verifica se ainda existem pacotes a serem transmitidos
+                addNewMessageToWindow()
+                numbersOfPacketsToBeTransmited = numbersOfPacketsToBeTransmited - 1
+            time.sleep(timeBetweenPackets)          #gera um tempo entre envio de pacotes
 
-        time.sleep(timeBetweenPackets)          #gera um tempo entre envio de pacotes
+
 
 clientSocket.close()
