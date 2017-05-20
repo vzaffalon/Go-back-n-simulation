@@ -4,6 +4,13 @@ from Message import *
 import time
 import json
 import random
+import thread
+
+#todo
+#checksum
+#caracter shift for generating error
+#not sendind ack on case off ack lost
+#envio de arquivo
 
 #global variables
 clientAddress = 0    #variavel que recebera endereco do cliente
@@ -15,9 +22,9 @@ def sendAck(sequenceNumber,data):
     ackSerialization = json.dumps(ack.__dict__)  #envia o ack em formato json
     serverSocket.sendto(ackSerialization, clientAddress)
     if sequenceNumber == -1:
-        print "Ack com falha enviado: " + str(ack.__dict__) + '\n'
+        print "Ack com falha enviado: " + '\n' + "Mensagem: "+ ack.data + '\n' + "sequenceNumber: " + str(ack.sequenceNumber)  +  '\n'
     else:
-        print "Ack enviado: " + str(ack.__dict__) + '\n'
+        print "Ack enviado: " + '\n' + "Mensagem: "+ ack.data + '\n' + "sequenceNumber: " + str(ack.sequenceNumber)  + '\n'
 
 
 def receiveMessage():
@@ -25,7 +32,7 @@ def receiveMessage():
     messageSerialized, address = serverSocket.recvfrom(2048)
     clientAddress = address
     message = json.loads(messageSerialized)  #recebe a mensagem em formato json
-    print "Mensagem recebida " + str(message) + '\n'
+    print "Mensagem Recebida: " + '\n' + "Mensagem: "+ message['data'] + '\n' + "sequenceNumber: " + str(message['sequenceNumber']) +  '\n'
     return message
 
 def generateRandomChanceOfFail():
@@ -35,7 +42,7 @@ def generateRandomChanceOfFail():
     else:
         return False
 
-def verifyAckFailures():
+def verifyAckFailures(message):
     if generateRandomChanceOfFail() == True:
         #envia mensagem com falha de ack ou seja sequenceNumber -1 gerando timeout
         sendAck(-1,message['data'])
@@ -47,16 +54,24 @@ def verifyAckFailures():
             #nenhum erro envia mensagem normalmente com sequenceNumber correto
             sendAck(message['sequenceNumber'],message['data'])
 
-#socket config variables
-serverIp = ''
-serverPort = 12000
+def receiveAck():
+    while 1:
+        time.sleep(timeBetweenAcksSend)          #gera um tempo entre envio de pacotes
+        message = receiveMessage()
+        verifyAckFailures(message)
 
-#server socket configuration
-serverSocket = socket(AF_INET, SOCK_DGRAM)
-serverSocket.bind((serverIp, serverPort))
-print 'The server is ready to receive' + '\n'
+if __name__ == "__main__":
+    #socket config variables
+    serverIp = ''
+    serverPort = 12000
 
-while 1:
-    time.sleep(timeBetweenAcksSend)          #gera um tempo entre envio de pacotes
-    message = receiveMessage()
-    verifyAckFailures()
+    #server socket configuration
+    serverSocket = socket(AF_INET, SOCK_DGRAM)
+    serverSocket.bind((serverIp, serverPort))
+    print 'The server is ready to receive' + '\n'
+
+    #create and start threads
+    thread.start_new_thread(receiveAck, ())
+
+    while 1:
+        pass
