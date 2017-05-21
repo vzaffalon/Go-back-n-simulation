@@ -14,8 +14,8 @@ import thread
 
 #global variables
 clientAddress = 0    #variavel que recebera endereco do cliente
-randomChance = 0    #valor em porcentagem da chance de erros ocorrerem
-timeBetweenAcksSend = 3   #tempo em segundos entre envio de acks
+randomChance = 10    #valor em porcentagem da chance de erros ocorrerem
+timeBetweenAcksSend = 2   #tempo em segundos entre envio de acks
 
 def sendAck(sequenceNumber,data):
     ack = Ack(sequenceNumber,data + " ack")
