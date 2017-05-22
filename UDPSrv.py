@@ -97,6 +97,8 @@ if __name__ == "__main__":
     serverIp = ''
     serverPort = 12000
 
+    randomChance = int(raw_input("Escreva a porcentagem de chance de erro(0 - 100) no recebimento de uma mensagem: "))
+
     #server socket configuration
     serverSocket = socket(AF_INET, SOCK_DGRAM)
     serverSocket.settimeout(timeOut)

@@ -35,14 +35,7 @@ timeBetweenPackets = 2 #tempo entre envio de pacotes em segundos
 
 def receiveAck():
         global acksToBeReceivedNumber
-        try:
-            ackSerialized, serverAddress = clientSocket.recvfrom(2048) #buffer size 2048
-        except error as socketerror:
-            print "extraPacketMode " + str(extraPacketMode)
-            print "window len " + str(len(window))
-            print "window size " + str(windowSize)
-            print "birl calcul " + str(windowSize - 1 - (windowSize - (numbersOfPacketsToBeTransmited - numbersOfPacketsTransmited)))
-            print "acksToBeReceivedNumber " + str(acksToBeReceivedNumber)
+        ackSerialized, serverAddress = clientSocket.recvfrom(2048) #buffer size 2048
         ack = json.loads(ackSerialized)
         acksToBeReceivedNumber = acksToBeReceivedNumber - 1
         verifySequenceNumber(ack['sequenceNumber'],ack)
