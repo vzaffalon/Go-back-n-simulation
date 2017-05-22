@@ -4,11 +4,12 @@ from Message import *
 import time
 import json
 import thread
+import sys
 
 #socket config variables
 serverIp = ''
 serverPort = 12000
-timeOut = 10     #em segundos
+timeOut = 20     #em segundos
 
 #client socket configuration
 clientSocket = socket(AF_INET, SOCK_DGRAM)          #conexao socket tipo internet e udp
@@ -17,20 +18,20 @@ clientSocket.settimeout(timeOut)
 #go-back-n variables
 #parametros modificaveis
 windowSize = 5   #janela do cliente
-timeBetweenPackets = 2 #tempo entre envio de pacotes em segundos
-maximumPacketFlow = 70    #quantidade maxima de pacotes que a rede suporta ate ser considerada congestionada
-numbersOfPacketsToBeTransmited = 45    #numero de mensagens que serao transmitidos pelo programa
-messageString = "hello server "   #mensagem padrao que sera enviada
 
 #parametros nao modificaveis
-numbersOfPacketsTransmited = 0
+numbersOfPacketsToBeTransmited = 0    #numero de mensagens que serao transmitidos pelo programa
+numbersOfPacketsTransmited = 0          #numero atual de pacotes ja transmitido
 sequenceNumber = 1       #numero de sequencia da mensagem
 expectedSequenceNumber = 1 #numero do sequence number que o cliente espera receber do ack
 window = []      #lista contendo elementos atualmente na janela
 errorAlreadyOcurred = False  #evita que mensagems de error seja printada denovo pelos proximos acks da janela enviada
-extraPacketMode = False
-acksToBeReceivedNumber = 0
-lastState = False
+extraPacketMode = False     #modo de envio de pacotes 1 por 1
+acksToBeReceivedNumber = 0  #quantidades de acks que ainda serao recebidas
+lastState = False       #ultimo estado: extraPacketMode ou modo janela
+content = 0             # conteudo do arquivo
+fileLine = 0            #variavel do arquivo
+timeBetweenPackets = 2 #tempo entre envio de pacotes em segundos
 
 def receiveAck():
         global acksToBeReceivedNumber
@@ -39,6 +40,12 @@ def receiveAck():
         acksToBeReceivedNumber = acksToBeReceivedNumber - 1
         verifySequenceNumber(ack['sequenceNumber'],ack)
 
+def showUploadDetails():
+    global numbersOfPacketsTransmited,acksToBeReceivedNumber
+    print "Numero de mensagens trasmitidas: " + str(numbersOfPacketsTransmited)
+    print "Total de mensagens do arquivo: " + str(numbersOfPacketsToBeTransmited)
+    print "Porcentagem do arquivo transferido: " + str((numbersOfPacketsTransmited/float(numbersOfPacketsToBeTransmited))*100.0) + '%\n'
+
 def verifySequenceNumber(seqNumber,ack):
     global expectedSequenceNumber,errorAlreadyOcurred,extraPacketMode
     if expectedSequenceNumber == seqNumber:
@@ -46,7 +53,7 @@ def verifySequenceNumber(seqNumber,ack):
             if (errorAlreadyOcurred == True):
                 time.sleep(5)
                 #print "UHUUUUUUU BIRLLLL"
-            print "Ack Recebido: " + '\n' + "Mensagem: "+ ack['data'] + '\n' + "sequenceNumber: " + str(ack['sequenceNumber']) + '\n'
+            print "Ack Recebido: " + '\n' + "Mensagem: "+ ack['data'] + '\n' + "SequenceNumber: " + str(ack['sequenceNumber']) + '\n'
             errorAlreadyOcurred = False
             moveWindow()
     else:
@@ -55,20 +62,20 @@ def verifySequenceNumber(seqNumber,ack):
         #print "error already ocurred" + str(errorAlreadyOcurred) + '\n'
         if errorAlreadyOcurred == False: #evita que mensagems de error seja printada denovo pelos proximos acks da janela enviada
             if seqNumber == -1:
-                print 'timeout - ack do sequenceNumber ' + str(expectedSequenceNumber) + ' nao foi recebido - reenviando janela' + '\n'
+                print 'Timeout - mensagem ' + ack['data'] + ' nao foi recebida - Reenviando janela' + '\n'
                 errorAlreadyOcurred = True
             else:
-                print 'numero de sequencia errado da mensagem ' + ack['data'] + ' - reenviando janela' + '\n'
+                print 'Numero de sequencia errado da mensagem ' + ack['data'] + ' - Reenviando janela' + '\n'
                 errorAlreadyOcurred = True
         else:
-            print "Ack " + str(ack['sequenceNumber']) +' recebido e ignorado' +'\n'
+            print "Ack da mensagem: " + str(ack['data']) +' recebido e ignorado' +'\n'
 
 def moveWindow():
-    global expectedSequenceNumber,numbersOfPacketsToBeTransmited,extraPacketMode
+    global expectedSequenceNumber,numbersOfPacketsToBeTransmited,extraPacketMode,numbersOfPacketsTransmited,windowSize
     removeMessageFromWindow()           #mensagem enviada e com ack recebido retira da janela
     expectedSequenceNumber = expectedSequenceNumber + 1     #numero usado para verificacao de ordem
-
-    if numbersOfPacketsTransmited <= numbersOfPacketsToBeTransmited:               #verifica se ainda existem pacotes a serem transmitidos
+    numbersOfPacketsTransmited = numbersOfPacketsTransmited + 1
+    if numbersOfPacketsTransmited <= numbersOfPacketsToBeTransmited-windowSize:               #verifica se ainda existem pacotes a serem transmitidos
         addNewMessageToWindow()
         extraPacketMode = True
 
@@ -76,66 +83,85 @@ def removeMessageFromWindow():
     window.pop(0)
 
 def sendMessage(clientMessage):
-    global acksToBeReceivedNumber,numbersOfPacketsTransmited
+    global acksToBeReceivedNumber
     messageSerialization = json.dumps(clientMessage.__dict__)       #tranforma classe pra dicionario e manda em formato json
     clientSocket.sendto(messageSerialization,(serverIp, serverPort))
-    print "Mensagem Enviada " + '\n' + "Mensagem: "+ clientMessage.data + '\n' + "sequenceNumber: " + str(clientMessage.sequenceNumber) + '\n'
+    print "Mensagem Enviada " + '\n' + "Mensagem: "+ clientMessage.data + '\n' + "SequenceNumber: " + str(clientMessage.sequenceNumber) + '\n'
     acksToBeReceivedNumber = acksToBeReceivedNumber + 1
-    numbersOfPacketsTransmited = numbersOfPacketsTransmited + 1
     time.sleep(1)
 
 def addNewMessageToWindow():
-    global sequenceNumber
-    clientMessage = Message(sequenceNumber,messageString + str(sequenceNumber))
+    global sequenceNumber,fileLine
+    clientMessage = Message(sequenceNumber,content[fileLine])
     window.append(clientMessage)
+    fileLine = fileLine + 1
     sequenceNumber = sequenceNumber + 1
 
 def goBackExecutionThread():
-    global window,timeBetweenPackets,numbersOfPacketsToBeTransmited,extraPacketMode
-    global numbersOfPacketsTransmited,sequenceNumber,acksToBeReceivedNumber
+    global window,timeBetweenPackets,extraPacketMode
+    global sequenceNumber,acksToBeReceivedNumber,windowSize
     lastMessageSequenceNumber = x
+    sub = 0
     #enquanto a janela nao fica vazia:
     #envia mensagens,recebe o ack,retira a primeira mensagem e adiciona a proxima na janela
-    while len(window) > 0:
-            windowLen = len(window)
+    windowLen = len(window)
+    while windowLen > 0:
             windowAux = window
-            #sincronize threads
             if extraPacketMode == False:
-                #print "acksToBeReceived " + str(acksToBeReceivedNumber) + '\n'
                 while(extraPacketMode == False and acksToBeReceivedNumber > 0):
-                    #print "waiting extra packet mode false"
                     time.sleep(1)
                     pass
                 if extraPacketMode == False:
-                    #create a instance of window so window changing on execution time dont mess with the program
                     y = 0
                     while y < windowLen:
-                        sendMessage(windowAux[y])
-                        y = y + 1
+                        try:
+                            sendMessage(windowAux[y])
+                            y = y + 1
+                        except IndexError:
+                            h = 5
             else:
-                    y = 4
-                    if lastMessageSequenceNumber != windowAux[y].sequenceNumber:
+                if numbersOfPacketsTransmited <= numbersOfPacketsToBeTransmited - windowSize:
+                    y = windowSize-1 - sub
+                    try:
+                        if lastMessageSequenceNumber != windowAux[y].sequenceNumber:
+                            lastMessageSequenceNumber = windowAux[y].sequenceNumber
+                            sendMessage(windowAux[y])
+                    except IndexError:
+                        if numbersOfPacketsToBeTransmited - numbersOfPacketsTransmited == 1:
+                            sendMessage(windowAux[y-1])
+                        sub = sub + 1
+                else:
+                    y = windowSize - 1 - (windowSize - (numbersOfPacketsToBeTransmited - numbersOfPacketsTransmited))
+                    if lastMessageSequenceNumber != windowAux[y].sequenceNumber and y >= 0:
                         lastMessageSequenceNumber = windowAux[y].sequenceNumber
-                        #print "EXTRA PACKET MODE:" + str(extraPacketMode) + '\n'
                         sendMessage(windowAux[y])
-
-
-#there is no need for syncronization
-#
+                    sys.exit()
+            windowLen = len(window)
+    print "saiu"
 
 def receiveAckThread():
-    global errorAlreadyOcurred,window,timeBetweenPackets,extraPacketMode,acksToBeReceivedNumber
+    global errorAlreadyOcurred,window,timeBetweenPackets,extraPacketMode
     #enquanto a janela nao fica vazia:
     #envia mensagens,recebe o ack,retira a primeira mensagem e adiciona a proxima na janela
-
-    while len(window) > 0:
-        #print "EXTRA PACKET MODE ACK:" + str(extraPacketMode) + '\n'
-        windowLen = len(window)
+    windowLen = len(window)
+    while windowLen > 0:
         time.sleep(timeBetweenPackets)          #gera um tempo entre envio de pacotes
         receiveAck()                            #recebe os ack da janela enviada
+        windowLen = len(window)
 
+    sys.exit("Arquivo transferido com sucesso!!")
+
+def readFile(fname):
+    global content,numbersOfPacketsToBeTransmited
+    with open(fname) as f:
+        content = f.readlines()
+        # you may also want to remove whitespace characters like `\n` at the end of each line
+    content = [x.strip() for x in content]
+    numbersOfPacketsToBeTransmited = len(content)
 
 if __name__ == "__main__":
+    readFile(raw_input("Escreva o nome do arquivo que sera transmitido: "))
+
     #inicia a janela com as primeiras mensagens a serem enviadas
     for x in range (0,windowSize):
         addNewMessageToWindow()
@@ -146,5 +172,9 @@ if __name__ == "__main__":
     thread.start_new_thread(receiveAckThread,()),
 
     while 1:
+        time.sleep(8)
+        showUploadDetails()
+        if(numbersOfPacketsToBeTransmited == numbersOfPacketsTransmited):
+            sys.exit()
         pass
     clientSocket.close()

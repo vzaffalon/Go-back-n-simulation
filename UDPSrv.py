@@ -5,6 +5,7 @@ import time
 import json
 import random
 import thread
+import sys
 
 #todo
 #checksum
@@ -16,6 +17,11 @@ import thread
 clientAddress = 0    #variavel que recebera endereco do cliente
 randomChance = 10    #valor em porcentagem da chance de erros ocorrerem
 timeBetweenAcksSend = 2   #tempo em segundos entre envio de acks
+myFile = 0
+timeOut = 10
+
+dontSaveState = False
+lastSequence = 9999
 
 def sendAck(sequenceNumber,data):
     ack = Ack(sequenceNumber,data + " ack")
@@ -28,8 +34,13 @@ def sendAck(sequenceNumber,data):
 
 
 def receiveMessage():
-    global clientAddress
-    messageSerialized, address = serverSocket.recvfrom(2048)
+    global clientAddress,timeout
+    try:
+        messageSerialized, address = serverSocket.recvfrom(2048)
+    except error as socketerror:
+        print "Arquivo recebido e salvo em arquivoSaida.txt"
+        myFile.close()
+        sys.exit()
     clientAddress = address
     message = json.loads(messageSerialized)  #recebe a mensagem em formato json
     print "Mensagem Recebida: " + '\n' + "Mensagem: "+ message['data'] + '\n' + "sequenceNumber: " + str(message['sequenceNumber']) +  '\n'
@@ -43,22 +54,43 @@ def generateRandomChanceOfFail():
         return False
 
 def verifyAckFailures(message):
-    if generateRandomChanceOfFail() == True:
+    global dontSaveState,lastSequence
+    if generateRandomChanceOfFail() == True and message['sequenceNumber'] != lastSequence:
         #envia mensagem com falha de ack ou seja sequenceNumber -1 gerando timeout
-        sendAck(-1,message['data'])
+        sendAck(-1,message['data'] + " " +str(message['sequenceNumber']))
+        if  dontSaveState == False:
+            dontSaveState = True
+            lastSequence = message['sequenceNumber']
     else:
-        if generateRandomChanceOfFail() == True:
+        if generateRandomChanceOfFail() == True and message['sequenceNumber'] != lastSequence:
             #envia mensagem na ordem incorreta ou seja envia sequenceNumber errado
-            sendAck(message['sequenceNumber'] + 1,message['data'])
+            sendAck(message['sequenceNumber'] + 1,message['data'] + " " +str(message['sequenceNumber']))
+            if  dontSaveState == False:
+                dontSaveState = True
+                lastSequence = message['sequenceNumber']
         else:
             #nenhum erro envia mensagem normalmente com sequenceNumber correto
-            sendAck(message['sequenceNumber'],message['data'])
+            sendAck(message['sequenceNumber'],message['data'] + " " +str(message['sequenceNumber']))
+            if message['sequenceNumber'] == lastSequence:
+                dontSaveState = False
+            if dontSaveState == False:
+                saveDataOnFile(message['data'])
 
 def receiveAck():
     while 1:
         time.sleep(timeBetweenAcksSend)          #gera um tempo entre envio de pacotes
         message = receiveMessage()
         verifyAckFailures(message)
+
+
+def createFile():
+    global myFile
+    myFile = open('arquivoSaida.txt', 'w')
+
+def saveDataOnFile(fileData):
+    global myFile
+    myFile.write(fileData + '\n')
+    print "Arquivo de saida recebeu: " + fileData + '\n'
 
 if __name__ == "__main__":
     #socket config variables
@@ -67,9 +99,11 @@ if __name__ == "__main__":
 
     #server socket configuration
     serverSocket = socket(AF_INET, SOCK_DGRAM)
+    serverSocket.settimeout(timeOut)
     serverSocket.bind((serverIp, serverPort))
     print 'The server is ready to receive' + '\n'
 
+    createFile()
     #create and start threads
     thread.start_new_thread(receiveAck, ())
 
