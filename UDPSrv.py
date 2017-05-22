@@ -18,7 +18,7 @@ clientAddress = 0    #variavel que recebera endereco do cliente
 randomChance = 10    #valor em porcentagem da chance de erros ocorrerem
 timeBetweenAcksSend = 2   #tempo em segundos entre envio de acks
 myFile = 0
-timeOut = 10
+timeOut = 20
 
 dontSaveState = False
 lastSequence = 9999

@@ -9,7 +9,7 @@ import sys
 #socket config variables
 serverIp = ''
 serverPort = 12000
-timeOut = 20     #em segundos
+timeOut = 25     #em segundos
 
 #client socket configuration
 clientSocket = socket(AF_INET, SOCK_DGRAM)          #conexao socket tipo internet e udp
@@ -35,7 +35,14 @@ timeBetweenPackets = 2 #tempo entre envio de pacotes em segundos
 
 def receiveAck():
         global acksToBeReceivedNumber
-        ackSerialized, serverAddress = clientSocket.recvfrom(2048) #buffer size 2048
+        try:
+            ackSerialized, serverAddress = clientSocket.recvfrom(2048) #buffer size 2048
+        except error as socketerror:
+            print "extraPacketMode " + str(extraPacketMode)
+            print "window len " + str(len(window))
+            print "window size " + str(windowSize)
+            print "birl calcul " + str(windowSize - 1 - (windowSize - (numbersOfPacketsToBeTransmited - numbersOfPacketsTransmited)))
+            print "acksToBeReceivedNumber " + str(acksToBeReceivedNumber)
         ack = json.loads(ackSerialized)
         acksToBeReceivedNumber = acksToBeReceivedNumber - 1
         verifySequenceNumber(ack['sequenceNumber'],ack)
@@ -49,17 +56,13 @@ def showUploadDetails():
 def verifySequenceNumber(seqNumber,ack):
     global expectedSequenceNumber,errorAlreadyOcurred,extraPacketMode
     if expectedSequenceNumber == seqNumber:
-            #print "ERROR ALREADY OCURRED " + str(errorAlreadyOcurred) + "lastState " + str(lastState)
             if (errorAlreadyOcurred == True):
                 time.sleep(5)
-                #print "UHUUUUUUU BIRLLLL"
             print "Ack Recebido: " + '\n' + "Mensagem: "+ ack['data'] + '\n' + "SequenceNumber: " + str(ack['sequenceNumber']) + '\n'
             errorAlreadyOcurred = False
             moveWindow()
     else:
-        #print "expectedSequenceNumber" + str(expectedSequenceNumber) + '\n'
         extraPacketMode = False
-        #print "error already ocurred" + str(errorAlreadyOcurred) + '\n'
         if errorAlreadyOcurred == False: #evita que mensagems de error seja printada denovo pelos proximos acks da janela enviada
             if seqNumber == -1:
                 print 'Timeout - mensagem ' + ack['data'] + ' nao foi recebida - Reenviando janela' + '\n'
@@ -135,9 +138,9 @@ def goBackExecutionThread():
                     if lastMessageSequenceNumber != windowAux[y].sequenceNumber and y >= 0:
                         lastMessageSequenceNumber = windowAux[y].sequenceNumber
                         sendMessage(windowAux[y])
-                    sys.exit()
+                    if numbersOfPacketsTransmited == numbersOfPacketsToBeTransmited:
+                        sys.out()
             windowLen = len(window)
-    print "saiu"
 
 def receiveAckThread():
     global errorAlreadyOcurred,window,timeBetweenPackets,extraPacketMode
@@ -149,7 +152,7 @@ def receiveAckThread():
         receiveAck()                            #recebe os ack da janela enviada
         windowLen = len(window)
 
-    sys.exit("Arquivo transferido com sucesso!!")
+    sys.exit()
 
 def readFile(fname):
     global content,numbersOfPacketsToBeTransmited
@@ -161,6 +164,7 @@ def readFile(fname):
 
 if __name__ == "__main__":
     readFile(raw_input("Escreva o nome do arquivo que sera transmitido: "))
+    windowSize = int(raw_input("Escreva o tamanho da janela: "))
 
     #inicia a janela com as primeiras mensagens a serem enviadas
     for x in range (0,windowSize):
